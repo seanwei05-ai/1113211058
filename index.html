@@ -121,4 +121,133 @@
     const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
 
     // 撞牆或撞到自己
-    if (head.x < 0 || head.y
+    if (head.x < 0 || head.y < 0 || head.x >= COLS || head.y >= ROWS ||
+        snake.some(s => s.x === head.x && s.y === head.y)) {
+      return gameOver();
+    }
+
+    snake.unshift(head);
+    if (head.x === food.x && head.y === food.y) {
+      score++;
+      scoreEl.textContent = score;
+      if (score % 5 === 0 && speed > 60) { speed -= 8; schedule(); }
+      placeFood();
+    } else {
+      snake.pop();
+    }
+    draw();
+  }
+
+  function gameOver() {
+    running = false;
+    clearInterval(timer);
+    if (score > best) {
+      best = score; bestEl.textContent = best;
+      try { localStorage.setItem('snake-best', best); } catch (e) {}
+    }
+    ovTitle.textContent = '遊戲結束';
+    ovText.textContent = `你的分數：${score}　最高分：${best}`;
+    startBtn.textContent = '再玩一次';
+    overlay.classList.remove('hidden');
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // 棋盤格
+    ctx.fillStyle = C('--grid');
+    for (let x = 0; x < COLS; x++)
+      for (let y = 0; y < ROWS; y++)
+        if ((x + y) % 2 === 0) ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
+    // 食物
+    ctx.fillStyle = C('--food');
+    ctx.beginPath();
+    ctx.arc(food.x*CELL + CELL/2, food.y*CELL + CELL/2, CELL/2 - 2, 0, Math.PI*2);
+    ctx.fill();
+    // 蛇
+    snake.forEach((s, i) => {
+      ctx.fillStyle = i === 0 ? C('--head') : C('--snake');
+      roundRect(s.x*CELL + 1, s.y*CELL + 1, CELL - 2, CELL - 2, 6);
+      ctx.fill();
+    });
+    // 眼睛
+    const h = snake[0];
+    ctx.fillStyle = '#06220f';
+    const ex = dir.y === 0 ? [dir.x > 0 ? 14 : 6, dir.x > 0 ? 14 : 6] : [5, 15];
+    const ey = dir.y === 0 ? [5, 15] : [dir.y > 0 ? 14 : 6, dir.y > 0 ? 14 : 6];
+    for (let i = 0; i < 2; i++) {
+      ctx.beginPath();
+      ctx.arc(h.x*CELL + ex[i], h.y*CELL + ey[i], 2, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  function turn(name) {
+    const d = DIRS[name];
+    if (!d || !running) return;
+    // 不能直接回頭
+    if (d.x === -dir.x && d.y === -dir.y) return;
+    nextDir = d;
+  }
+
+  function togglePause() {
+    if (!running) return;
+    paused = !paused;
+    if (paused) {
+      ovTitle.textContent = '已暫停';
+      ovText.textContent = '按空白鍵繼續';
+      startBtn.textContent = '繼續';
+      overlay.classList.remove('hidden');
+    } else {
+      overlay.classList.add('hidden');
+    }
+  }
+
+  // 鍵盤
+  const KEYS = {
+    ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right',
+    w:'up', s:'down', a:'left', d:'right', W:'up', S:'down', A:'left', D:'right'
+  };
+  window.addEventListener('keydown', e => {
+    if (KEYS[e.key]) { e.preventDefault(); turn(KEYS[e.key]); }
+    else if (e.key === ' ') {
+      e.preventDefault();
+      if (!running) start(); else togglePause();
+    }
+  });
+
+  // 按鈕
+  startBtn.addEventListener('click', () => { if (running && paused) togglePause(); else start(); });
+  document.querySelectorAll('.pad button').forEach(b =>
+    b.addEventListener('pointerdown', e => { e.preventDefault(); turn(b.dataset.dir); })
+  );
+
+  // 滑動
+  let t0 = null;
+  window.addEventListener('touchstart', e => { const t = e.touches[0]; t0 = {x:t.clientX, y:t.clientY}; }, {passive:true});
+  window.addEventListener('touchend', e => {
+    if (!t0) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - t0.x, dy = t.clientY - t0.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) > 24) {
+      if (Math.abs(dx) > Math.abs(dy)) turn(dx > 0 ? 'right' : 'left');
+      else turn(dy > 0 ? 'down' : 'up');
+    }
+    t0 = null;
+  });
+
+  reset();
+  draw();
+})();
+</script>
+</body>
+</html>
